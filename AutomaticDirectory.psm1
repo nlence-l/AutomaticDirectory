@@ -103,8 +103,8 @@ function New-ForestDomainController {
         Install-ADDSForest `
         -DomainName $DomainAddress `
         -DomainNetbiosName $NetBiosName `
-        -ForestMode "Win2016" `
-        -DomainMode "Win2016" `
+        -ForestMode "WinThreshold" `
+        -DomainMode "WinThreshold" `
         -DatabasePath "C:\WINDOWS\NTDS" `
         -SysvolPath "C:\WINDOWS\SYSVOL" `
         -LogPath "C:\WINDOWS\NTDS" `
