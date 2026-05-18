@@ -410,7 +410,10 @@ function New-ADUserAccount {
         [string]$AccountName,
 
         [Parameter(Mandatory=$true)]
-        [string]$OrganizationalUnit,
+        [string]$UserOrganizationalUnit,
+
+        [Parameter(Mandatory=$true)]
+        [string]$GroupOrganizationalUnit,
 
         [Parameter(Mandatory=$true)]
         [string]$GroupName
@@ -427,16 +430,38 @@ function New-ADUserAccount {
             throw "The user '$AccountName' already exists."
         }
 
+        # Check if the user OU already exists
+        if (-not(Get-ADOrganizationalUnit -Filter "Name -eq '$UserOrganizationalUnit'" -ErrorAction SilentlyContinue)) {
+            throw "The OU '$UserOrganizationalUnit' doesn't exits."
+        }
+
+        # Check if the group OU already exists
+        if (-not(Get-ADOrganizationalUnit -Filter "Name -eq '$GroupOrganizationalUnit'" -ErrorAction SilentlyContinue)) {
+            throw "The OU '$GroupOrganizationalUnit' doesn't exits."
+        }
+
+        # Check if the group already exists
+        if (Get-ADGroup -Filter "Name -eq '$GroupName'" -ErrorAction SilentlyContinue) {
+            throw "The group '$GroupName' already exists."
+        }
+
         # Retrieve domain information
         $Domain = Get-ADDomain
         $DomainName = $Domain.DNSRoot
+        $DomainDN = $Domain.DistinguishedName
+
+        # Build the full user OU path
+        $UserOUPath = "OU=$UserOrganizationalUnit,$DomainDN"
+
+        # Build the full user OU path
+        $GroupOUPath = "OU=$GroupOrganizationalUnit,$DomainDN"
 
         # Generate user information
         $UserPrincipalName = "$AccountName@$DomainName"
         $EmailAddress = "$AccountName@$DomainName"
 
         # Default password
-        $Password = ConvertTo-SecureString "TotalyN0tSecure" -AsPlainText -Force
+        $Password = ConvertTo-SecureString "TotalyN0tSecure" -AsPlainText -Force        
 
         # Create the Active Directory user
         New-ADUser `
@@ -444,10 +469,18 @@ function New-ADUserAccount {
             -SamAccountName $AccountName `
             -UserPrincipalName $UserPrincipalName `
             -EmailAddress $EmailAddress `
-            -Path $OrganizationalUnit `
+            -Path $UserOUPath `
             -AccountPassword $Password `
             -Enabled $true `
             -ChangePasswordAtLogon $true
+
+        # Create the group
+        New-ADGroup `
+            -Name $GroupName `
+            -SamAccountName $GroupName `
+            -GroupScope Global `
+            -GroupCategory Security `
+            -Path $GroupOUPath
 
         # Add the user to the desired group
         Add-ADGroupMember `
