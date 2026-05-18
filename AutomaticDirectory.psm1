@@ -105,9 +105,6 @@ function New-ForestDomainController {
         -DomainNetbiosName $NetBiosName `
         -ForestMode "WinThreshold" `
         -DomainMode "WinThreshold" `
-        -DatabasePath "C:\WINDOWS\NTDS" `
-        -SysvolPath "C:\WINDOWS\SYSVOL" `
-        -LogPath "C:\WINDOWS\NTDS" `
         -InstallDNS:$true `
         -SafeModeAdministratorPassword (Read-Host -Prompt "DSRM Password:" -AsSecureString) `
         -Force:$true
@@ -154,9 +151,6 @@ function Add-DomainController {
         -DomainName $DomainAddress `
         -Credential (Get-Credential) `
         -InstallDNS `
-        -DatabasePath "C:\WINDOWS\NTDS" `
-        -SysvolPath "C:\WINDOWS\SYSVOL" `
-        -LogPath "C:\WINDOWS\NTDS" `
         -SafeModeAdministratorPassword (Read-Host -Prompt "DSRM Password:" -AsSecureString)
     } catch {
         Write-Error "Failed to add the domain controller to the existing Active Directory domain."
