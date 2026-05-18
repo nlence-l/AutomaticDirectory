@@ -323,42 +323,44 @@ function Import-ADDatabase {
             -Path $Path `
             -Delimiter $Delimiter
 
+        $DomainName = (Get-ADDomain).DNSRoot
+
         foreach ($Entry in $Database) {
 
-            $Object = $Entry.Data | ConvertFrom-Json
+            $UserPrincipalName = "$($Entry.SamAccountName)@$DomainName"
+            $EmailAddress = "$($Entry.SamAccountName)@$DomainName"
 
-            # Restore users
-            if ($Entry.Type -eq "User") {
+            # Check if the user already exists
+            if (-not (Get-ADUser -Filter "SamAccountName -eq '$($Entry.SamAccountName)'" -ErrorAction SilentlyContinue)) {
 
-                # Check if the user already exists
-                if (-not (Get-ADUser -Filter "SamAccountName -eq '$($Object.SamAccountName)'" -ErrorAction SilentlyContinue)) {
+                New-ADUser `
+                    -Name $Entry.Name `
+                    -SamAccountName $Entry.SamAccountName `
+                    -UserPrincipalName $UserPrincipalName `
+                    -EmailAddress $EmailAddress `
+                    -Path $Entry.OU `
+                    -Enabled $true `
+                    -AccountPassword (ConvertTo-SecureString "TotalyN0tSecure*" -AsPlainText -Force) `
+                    -ChangePasswordAtLogon $true
 
-                    New-ADUser `
-                        -Name $Object.Name `
-                        -SamAccountName $Object.SamAccountName `
-                        -UserPrincipalName $Object.UserPrincipalName `
-                        -EmailAddress $Object.Mail `
-                        -Enabled $true `
-                        -AccountPassword (ConvertTo-SecureString "TotalyN0tSecure*" -AsPlainText -Force)
-
-                    Write-Host "User created: $($Object.SamAccountName)"
-                }
+                Write-Host "User created: $($Entry.SamAccountName)"
             }
 
-            # Restore groups
-            elseif ($Entry.Type -eq "Group") {
+            # Check if the group already exists
+            if (-not (Get-ADGroup -Filter "Name -eq '$($Entry.Group)'" -ErrorAction SilentlyContinue)) {
 
-                # Check if the group already exists
-                if (-not (Get-ADGroup -Filter "Name -eq '$($Object.Name)'" -ErrorAction SilentlyContinue)) {
+                New-ADGroup `
+                    -Name $Entry.Group `
+                    -GroupScope Global `
+                    -GroupCategory Security `
+                    -Path $Entry.OU
 
-                    New-ADGroup `
-                        -Name $Object.Name `
-                        -GroupScope Global `
-                        -GroupCategory Security
-
-                    Write-Host "Group created: $($Object.Name)"
-                }
+                Write-Host "Group created: $($Entry.Group)"
             }
+
+            # Add the user to the group
+            Add-ADGroupMember -Identity $Entry.Group -Members $Entry.SamAccountName
+            Write-Host "User '$($Entry.SamAccountName)' added to group '$($Entry.Group)'."
         }
 
         Write-Host "Active Directory database imported successfully."

@@ -1,0 +1,3 @@
+Name,SamAccountName,OU,Group
+John Doe,jdoe,"OU=testOU,DC=domolia,DC=local",Sales_Users
+Jane Smith,jsmith,"OU=testOU2,DC=domolia,DC=local",IT_Users
