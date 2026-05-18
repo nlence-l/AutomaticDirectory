@@ -154,7 +154,6 @@ function Add-DomainController {
         -DomainName $DomainAddress `
         -Credential (Get-Credential) `
         -InstallDNS `
-        -SiteName "MySite" `
         -DatabasePath "C:\WINDOWS\NTDS" `
         -SysvolPath "C:\WINDOWS\SYSVOL" `
         -LogPath "C:\WINDOWS\NTDS" `
