@@ -22,8 +22,6 @@
     Tested on: Windows Server 2025
 #>
 
-# https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/deploy/install-active-directory-domain-services--level-100-
-
 # ==========================
 # AD Installation Functions
 # ==========================
@@ -397,7 +395,7 @@ function New-ADUserAccount {
 .EXAMPLE
     New-ADUserAccount `
         -AccountName "jdoe" `
-        -OrganizationalUnit "OU=Users,DC=domain,DC=local" `
+        -OrganizationalUnit "MyExistingOU" `
         -GroupName "Employees"
 
 .NOTES
@@ -764,7 +762,7 @@ function New-ADSecurityGroup {
 .EXAMPLE
     New-ADGroup `
         -GroupName "ITAdmins" `
-        -OrganizationalUnit "OU=Groups,DC=domain,DC=local" `
+        -OrganizationalUnit "MyExistingOU" `
         -GroupScope "Global" `
         -Description "IT Administrators Group"
 
@@ -799,12 +797,19 @@ function New-ADSecurityGroup {
             throw "The group '$GroupName' already exists."
         }
 
+        # Retrieve domain information
+        $Domain = Get-ADDomain
+        $DomainDN = $Domain.DistinguishedName
+
+        # Build the full user OU path
+        $OUPath = "OU=$OrganizationalUnit,$DomainDN"
+
         # Create the group
         New-ADGroup `
             -Name $GroupName `
             -GroupScope $GroupScope `
             -GroupCategory Security `
-            -Path $OrganizationalUnit `
+            -Path $OUPath `
             -Description $Description
 
         Write-Host "Group '$GroupName' created successfully."
@@ -954,7 +959,7 @@ function New-ADDistributionGroup {
 .EXAMPLE
     New-ADDistributionGroup `
         -GroupName "MarketingMail" `
-        -OrganizationalUnit "OU=Groups,DC=domain,DC=local" `
+        -OrganizationalUnit "MyExistingOU" `
         -GroupScope "Global" `
         -Description "Marketing distribution group"
 
@@ -989,12 +994,24 @@ function New-ADDistributionGroup {
             throw "The group '$GroupName' already exists."
         }
 
+        # Check if the OU already exists
+        if (-not(Get-ADOrganizationalUnit -Filter "Name -eq '$OrganizationalUnit'" -ErrorAction SilentlyContinue)) {
+            throw "The OU '$rOrganizationalUnit' doesn't exits."
+        }
+
+        # Retrieve domain information
+        $Domain = Get-ADDomain
+        $DomainDN = $Domain.DistinguishedName
+
+        # Build the full user OU path
+        $OUPath = "OU=$OrganizationalUnit,$DomainDN"
+
         # Create the distribution group
         New-ADGroup `
             -Name $GroupName `
             -GroupScope $GroupScope `
             -GroupCategory Distribution `
-            -Path $OrganizationalUnit `
+            -Path $OUpath `
             -Description $Description
 
         Write-Host "Distribution group '$GroupName' created successfully."
