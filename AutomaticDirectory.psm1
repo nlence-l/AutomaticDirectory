@@ -410,14 +410,22 @@ function New-ADUserAccount {
         [string]$AccountName,
 
         [Parameter(Mandatory=$true)]
-        [string]$UserOrganizationalUnit,
+        [string]$UserOU,
 
-        [Parameter(Mandatory=$true)]
-        [string]$GroupOrganizationalUnit,
+        [Parameter(Mandatory=$false)]
+        [string]$GroupOU,
 
         [Parameter(Mandatory=$true)]
         [string]$GroupName
     )
+
+    # Guard: check if running elevated
+    $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-Error "This function requires an elevated PowerShell session. Please re-run as Administrator."
+        return
+    }
 
     if (-not (Get-Module ActiveDirectory)) {
         Import-Module ActiveDirectory
@@ -429,32 +437,31 @@ function New-ADUserAccount {
         if (Get-ADUser -Filter "SamAccountName -eq '$AccountName'" -ErrorAction SilentlyContinue) {
             throw "The user '$AccountName' already exists."
         }
-
-        # Check if the user OU already exists
-        if (-not(Get-ADOrganizationalUnit -Filter "Name -eq '$UserOrganizationalUnit'" -ErrorAction SilentlyContinue)) {
-            throw "The OU '$UserOrganizationalUnit' doesn't exits."
-        }
-
-        # Check if the group OU already exists
-        if (-not(Get-ADOrganizationalUnit -Filter "Name -eq '$GroupOrganizationalUnit'" -ErrorAction SilentlyContinue)) {
-            throw "The OU '$GroupOrganizationalUnit' doesn't exits."
+        
+        # Check if the user OU exists and store it
+        $UserOUObject = Get-ADOrganizationalUnit -LDAPFilter "(name=$UserOU)" -ErrorAction SilentlyContinue
+        if (-not $UserOUObject) {
+            throw "The OU '$UserOU' doesn't exist."
         }
 
         # Check if the group already exists
-        if (Get-ADGroup -Filter "Name -eq '$GroupName'" -ErrorAction SilentlyContinue) {
-            throw "The group '$GroupName' already exists."
+        $GroupExists = Get-ADGroup -Filter "Name -eq '$GroupName'" -ErrorAction SilentlyContinue
+        # $GroupExists = Get-ADGroup -LDAPFilter "(cn=$GroupName)" -ErrorAction SilentlyContinue
+        
+        # Only validate GroupOU if the group doesn't exist
+        if (-not $GroupExists) {
+            if (-not $GroupOU) {
+                throw "GroupOU parameter is required when the group '$GroupName' does not exist."
+            }
+            $GroupOUObject = Get-ADOrganizationalUnit -LDAPFilter "(name=$GroupOU)" -ErrorAction SilentlyContinue
+            if (-not $GroupOUObject) {
+                throw "The OU '$GroupOU' doesn't exist."
+            }
         }
 
         # Retrieve domain information
         $Domain = Get-ADDomain
         $DomainName = $Domain.DNSRoot
-        $DomainDN = $Domain.DistinguishedName
-
-        # Build the full user OU path
-        $UserOUPath = "OU=$UserOrganizationalUnit,$DomainDN"
-
-        # Build the full user OU path
-        $GroupOUPath = "OU=$GroupOrganizationalUnit,$DomainDN"
 
         # Generate user information
         $UserPrincipalName = "$AccountName@$DomainName"
@@ -465,27 +472,27 @@ function New-ADUserAccount {
 
         # Create the Active Directory user
         New-ADUser `
-            -Name $AccountName `
-            -SamAccountName $AccountName `
-            -UserPrincipalName $UserPrincipalName `
-            -EmailAddress $EmailAddress `
-            -Path $UserOUPath `
-            -AccountPassword $Password `
-            -Enabled $true `
+            -Name               $AccountName `
+            -SamAccountName     $AccountName `
+            -UserPrincipalName  $UserPrincipalName `
+            -EmailAddress       $EmailAddress `
+            -Path               $UserOUObject.DistinguishedName `
+            -AccountPassword    $Password `
+            -Enabled            $true `
             -ChangePasswordAtLogon $true
 
-        # Create the group
-        New-ADGroup `
-            -Name $GroupName `
-            -SamAccountName $GroupName `
-            -GroupScope Global `
-            -GroupCategory Security `
-            -Path $GroupOUPath
+        if ($GroupExists) {
+            Add-ADGroupMember -Identity $GroupName -Members $AccountName
+        } else {
+            New-ADGroup `
+                -Name           $GroupName `
+                -SamAccountName $GroupName `
+                -GroupScope     Global `
+                -GroupCategory  Security `
+                -Path           $GroupOUObject.DistinguishedName
 
-        # Add the user to the desired group
-        Add-ADGroupMember `
-            -Identity $GroupName `
-            -Members $AccountName
+            Add-ADGroupMember -Identity $GroupName -Members $AccountName
+        }
 
         Write-Host "User '$AccountName' created successfully."
 
