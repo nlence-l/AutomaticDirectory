@@ -1005,7 +1005,7 @@ function New-ADDistributionGroup {
 
         # Check if the OU already exists
         if (-not(Get-ADOrganizationalUnit -Filter "Name -eq '$OrganizationalUnit'" -ErrorAction SilentlyContinue)) {
-            throw "The OU '$rOrganizationalUnit' doesn't exits."
+            throw "The OU '$OrganizationalUnit' doesn't exits."
         }
 
         # Retrieve domain information
