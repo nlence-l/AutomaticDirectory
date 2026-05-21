@@ -204,31 +204,34 @@ function Save-ADDatabase {
     # Properties that only exist on groups, not users
     $GroupOnlyProperties = @("Members", "GroupCategory", "GroupScope", "ManagedBy")
 
+    # Multi-value properties that need to be joined into a string for CSV
+    $MultiValueProperties = @("Members", "MemberOf")
+
     try {
-        # Split properties into user-safe and group-safe lists
-        $UserProperties  = $Properties | Where-Object { $GroupOnlyProperties -notcontains $_ }
-        $GroupProperties = $Properties
+        # Split properties — force arrays with @() to avoid string concatenation bug
+        # when only a single property is provided
+        [array]$UserProperties  = $Properties | Where-Object { $GroupOnlyProperties -notcontains $_ }
+        [array]$GroupProperties = $Properties
 
         # Build Select-Object column lists (requested props + Type)
-        $SelectUsers  = $UserProperties  + @{ Name="Type"; Expression={"User"} }
-        $SelectGroups = $GroupProperties + @{ Name="Type"; Expression={"Group"} }
+        [array]$SelectUsers  = $UserProperties  + @{ Name="Type"; Expression={"User"} }
+        [array]$SelectGroups = $GroupProperties + @{ Name="Type"; Expression={"Group"} }
 
-        # Handle missing user columns so both user/group rows have the same columns
+        # Add $null placeholder on user rows for group-only properties
+        # so every row shares the same columns in the CSV
         foreach ($Prop in $Properties) {
             if ($GroupOnlyProperties -contains $Prop) {
                 $SelectUsers += @{ Name=$Prop; Expression={$null} }
             }
         }
 
-        # For multi-value properties (e.g. Members), join array values into a single string
-        $MultiValueProperties = @("Members", "MemberOf")
+        # Replace multi-value properties with a joined string version (e.g. Members)
         foreach ($Prop in $GroupProperties) {
             if ($MultiValueProperties -contains $Prop) {
                 $PropCopy = $Prop  # Capture for closure
-                $SelectGroups = $SelectGroups | Where-Object {
-                    # Remove the plain string entry for this property
+                $SelectGroups = [array]($SelectGroups | Where-Object {
                     -not ($_ -is [string] -and $_ -eq $PropCopy)
-                }
+                })
                 $SelectGroups += @{ Name=$PropCopy; Expression={
                     $val = $_.$PropCopy
                     if ($val) { $val -join "|" } else { $null }
