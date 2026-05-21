@@ -253,124 +253,6 @@ function Save-ADDatabase {
     }
 }
 
-# function Save-ADDatabase {
-# <#
-# .SYNOPSIS
-#     Exports Active Directory users and groups into a CSV database file.
-
-# .DESCRIPTION
-#     Retrieves users and groups from the Active Directory domain and exports
-#     the selected properties into a CSV file. Allows the administrator to
-#     define a custom delimiter and specify which attributes should be included
-#     in the exported database.
-
-# .PARAMETER Path
-#     The destination path where the CSV database file will be saved.
-
-# .PARAMETER Delimiter
-#     The delimiter character used in the CSV export file.
-
-# .PARAMETER Properties
-#     An undefined number of Active Directory attributes to include
-#     in the exported database.
-
-# .EXAMPLE
-#     Export-ADDatabase `
-#         -Path "C:\Backup\ad_database.csv" `
-#         -Delimiter ";" `
-#         -Properties "Name","SamAccountName","Mail"
-
-#     # Exports Active Directory users and groups into a CSV file
-#     # using ";" as the delimiter and including the selected properties.
-
-# .NOTES
-#     Author: nlence-l & faventur
-#     Date: 2026-05-15
-#     Ensure the ActiveDirectory module is installed and imported before
-#     running this function.
-# #>
-#     param (
-#         [Parameter(Mandatory=$true)]
-#         [string]$Path,
-
-#         [Parameter(Mandatory=$true)]
-#         [string]$Delimiter,
-
-#         [Parameter(Mandatory=$false)]
-#         [string[]]$Properties
-
-#     )
-
-#     if (-not (Get-Module ActiveDirectory)) {
-#         Import-Module ActiveDirectory
-#     }
-
-#     try {
-#         # Get all available properties for a sample user and group
-#         $UserProperties = Get-ADUser -Identity "Administrator" -Properties * | Get-Member -MemberType Properties | Select-Object -ExpandProperty Name
-#         $GroupProperties = Get-ADGroup -Identity "Domain Admins" -Properties * | Get-Member -MemberType Properties | Select-Object -ExpandProperty Name
-
-#         # Default properties if none provided
-#         if (-not $Properties) {
-#             $Properties = @(
-#                 "Name",
-#                 "SamAccountName",
-#                 "DistinguishedName",
-#                 "ObjectClass",
-#                 "ObjectGUID"
-#             )
-#         }
-
-#         # Filter user/group properties to only valid ones
-#         $UserPropsToGet = $Properties | Where-Object { $UserProperties -contains $_ }
-#         $GroupPropsToGet = $Properties | Where-Object { $GroupProperties -contains $_ }
-
-#         # Retrieve all users and groups
-#         $Users = Get-ADUser -Filter * -Properties $UserPropsToGet | Select-Object $UserPropsToGet
-#         $Groups = Get-ADGroup -Filter * -Properties $GroupPropsToGet | Select-Object $GroupPropsToGet
-
-#         # # Create a structured export object
-#         $Database = @()
-
-#         foreach ($User in $Users) {
-#             $Database += [PSCustomObject]@{
-#                 Type = "User"
-#                 Data = ($User | ConvertTo-Json -Compress)
-#             }
-#         }
-
-#         foreach ($Group in $Groups) {
-#             $Database += [PSCustomObject]@{
-#                 Type = "Group"
-#                 Data = ($Group | ConvertTo-Json -Compress)
-#             }
-#         }
-
-#         # Add Type column to users
-#         $UsersWithType = $Users | Select-Object *, @{Name="Type";Expression={"User"}}
-
-#         # For groups: exclude Member from dynamic properties if requested
-#         $GroupsWithType = $Groups | Select-Object *, @{Name="Type";Expression={"Group"}}, @{Name="Member";Expression={$_.Member -join ";"}} 
-
-#         # Combine users and groups
-#         $Database = $UsersWithType + $GroupsWithType
-
-#         # Export the database into a CSV file
-#         $Database | Export-Csv `
-#             -Path $Path `
-#             -Delimiter $Delimiter `
-#             -NoTypeInformation `
-#             -Encoding UTF8
-
-#         Write-Host "Active Directory database exported successfully to: $Path"
-
-#     } catch {
-#         Write-Error "Failed to export the Active Directory database: $_"
-#     }
-# }
-
-
-
 function Import-ADDatabase {
 <#
 .SYNOPSIS
@@ -426,7 +308,22 @@ function Import-ADDatabase {
             -Path $Path `
             -Delimiter $Delimiter
 
-        $DomainName = (Get-ADDomain).DNSRoot
+        # Temporary use of attribute -Server added to Get-ADDomain
+        $ipinfos = netsh interface ipv4 show interface
+        $names = foreach($element in $ipinfos){
+            $matches = $null
+            if($element -match '.*ethernet.*|.*Local Area Connection.*'){
+                (($matches.values) -split "\s\s")[-1] -replace "^\s"
+            }
+        }
+        foreach($name in $names){
+            $IP = (Get-DnsClientServerAddress -InterfaceAlias $name -AddressFamily IPv4).ServerAddresses
+            if ($null -ne $IP) {
+                break
+            }
+        }
+
+        $DomainName = (Get-ADDomain -Server "$IP").DNSRoot
 
         foreach ($Entry in $Database) {
 
@@ -561,9 +458,23 @@ function New-ADUserAccount {
                 throw "The OU '$GroupOU' doesn't exist."
             }
         }
+        # Temporary use of attribute -Server added to Get-ADDomain
+        $ipinfos = netsh interface ipv4 show interface
+        $names = foreach($element in $ipinfos){
+            $matches = $null
+            if($element -match '.*ethernet.*|.*Local Area Connection.*'){
+                (($matches.values) -split "\s\s")[-1] -replace "^\s"
+            }
+        }
+        foreach($name in $names){
+            $IP = (Get-DnsClientServerAddress -InterfaceAlias $name -AddressFamily IPv4).ServerAddresses
+            if ($null -ne $IP) {
+                break
+            }
+        }
 
         # Retrieve domain information
-        $Domain = Get-ADDomain
+        $Domain = Get-ADDomain -Server "$IP"
         $DomainName = $Domain.DNSRoot
 
         # Generate user information
@@ -908,9 +819,23 @@ function New-ADSecurityGroup {
         if (Get-ADGroup -Filter "Name -eq '$GroupName'" -ErrorAction SilentlyContinue) {
             throw "The group '$GroupName' already exists."
         }
+        # Temporary use of attribute -Server added to Get-ADDomain
+        $ipinfos = netsh interface ipv4 show interface
+        $names = foreach($element in $ipinfos){
+            $matches = $null
+            if($element -match '.*ethernet.*|.*Local Area Connection.*'){
+                (($matches.values) -split "\s\s")[-1] -replace "^\s"
+            }
+        }
+        foreach($name in $names){
+            $IP = (Get-DnsClientServerAddress -InterfaceAlias $name -AddressFamily IPv4).ServerAddresses
+            if ($null -ne $IP) {
+                break
+            }
+        }
 
         # Retrieve domain information
-        $Domain = Get-ADDomain
+        $Domain = Get-ADDomain -Server "$IP"
         $DomainDN = $Domain.DistinguishedName
 
         # Build the full user OU path
@@ -1108,11 +1033,25 @@ function New-ADDistributionGroup {
 
         # Check if the OU already exists
         if (-not(Get-ADOrganizationalUnit -Filter "Name -eq '$OrganizationalUnit'" -ErrorAction SilentlyContinue)) {
-            throw "The OU '$OrganizationalUnit' doesn't exits."
+            throw "The OU '$OrganizationalUnit' doesn't exist."
+        }
+        # Temporary use of attribute -Server added to Get-ADDomain
+        $ipinfos = netsh interface ipv4 show interface
+        $names = foreach($element in $ipinfos){
+            $matches = $null
+            if($element -match '.*ethernet.*|.*Local Area Connection.*'){
+                (($matches.values) -split "\s\s")[-1] -replace "^\s"
+            }
+        }
+        foreach($name in $names){
+            $IP = (Get-DnsClientServerAddress -InterfaceAlias $name -AddressFamily IPv4).ServerAddresses
+            if ($null -ne $IP) {
+                break
+            }
         }
 
         # Retrieve domain information
-        $Domain = Get-ADDomain
+        $Domain = Get-ADDomain -Server "$IP"
         $DomainDN = $Domain.DistinguishedName
 
         # Build the full user OU path
