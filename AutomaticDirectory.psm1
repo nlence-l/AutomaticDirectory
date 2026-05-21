@@ -306,22 +306,23 @@ function Import-ADDatabase {
             throw "The specified file does not exist."
         }
 
-        # Import the CSV database
-        $Database = Import-Csv `
-            -Path $Path `
-            -Delimiter $Delimiter
-
-
+        $Database = Import-Csv -Path $Path -Delimiter $Delimiter
         $DomainName = (Get-ADDomain).DNSRoot
 
         foreach ($Entry in $Database) {
 
-            $UserPrincipalName = "$($Entry.SamAccountName)@$DomainName"
-            $EmailAddress = "$($Entry.SamAccountName)@$DomainName"
+            $UserPrincipalName  = "$($Entry.SamAccountName)@$DomainName"
+            $EmailAddress       = "$($Entry.SamAccountName)@$DomainName"
 
-            # Check if the user already exists
+            # Verify the OU exists
+            try {
+                Get-ADOrganizationalUnit -Identity $Entry.OU -ErrorAction Stop | Out-Null
+            } catch {
+                throw "OU '$($Entry.OU)' does not exist. Create it first."
+            }
+
+            # Create user if missing
             if (-not (Get-ADUser -Filter "SamAccountName -eq '$($Entry.SamAccountName)'" -ErrorAction SilentlyContinue)) {
-
                 New-ADUser `
                     -Name $Entry.Name `
                     -SamAccountName $Entry.SamAccountName `
@@ -331,13 +332,13 @@ function Import-ADDatabase {
                     -Enabled $true `
                     -AccountPassword (ConvertTo-SecureString "TotalyN0tSecure*" -AsPlainText -Force) `
                     -ChangePasswordAtLogon $true
-
                 Write-Host "User created: $($Entry.SamAccountName)"
+            } else {
+                Write-Host "User already exists: $($Entry.SamAccountName)"
             }
 
-            # Check if the group already exists
+            # Create group if missing
             if (-not (Get-ADGroup -Filter "Name -eq '$($Entry.Group)'" -ErrorAction SilentlyContinue)) {
-
                 New-ADGroup `
                     -Name $Entry.Group `
                     -GroupScope Global `
@@ -345,9 +346,11 @@ function Import-ADDatabase {
                     -Path $Entry.OU
 
                 Write-Host "Group created: $($Entry.Group)"
+            } else {
+                Write-Host "Group already exists: $($Entry.Group)"
             }
 
-            # Add the user to the group
+            # Add user to group
             Add-ADGroupMember -Identity $Entry.Group -Members $Entry.SamAccountName
             Write-Host "User '$($Entry.SamAccountName)' added to group '$($Entry.Group)'."
         }
