@@ -165,37 +165,26 @@ function Save-ADDatabase {
 <#
 .SYNOPSIS
     Exports Active Directory users and groups into a CSV database file.
-
 .DESCRIPTION
     Retrieves users and groups from the Active Directory domain and exports
     the selected properties into a CSV file. Allows the administrator to
-    define a custom delimiter and specify which attributes should be included
-    in the exported database.
-
+    define a custom delimiter and specify which attributes to include.
 .PARAMETER Path
     The destination path where the CSV database file will be saved.
-
 .PARAMETER Delimiter
     The delimiter character used in the CSV export file.
-
 .PARAMETER Properties
     An undefined number of Active Directory attributes to include
     in the exported database.
-
 .EXAMPLE
-    Export-ADDatabase `
+    Save-ADDatabase `
         -Path "C:\Backup\ad_database.csv" `
         -Delimiter ";" `
-        -Properties "Name","SamAccountName","Mail"
-
-    # Exports Active Directory users and groups into a CSV file
-    # using ";" as the delimiter and including the selected properties.
-
+        -Properties "Name","SamAccountName","Members"
 .NOTES
     Author: nlence-l & faventur
     Date: 2026-05-15
-    Ensure the ActiveDirectory module is installed and imported before
-    running this function.
+    Ensure the ActiveDirectory module is installed before running this function.
 #>
     param (
         [Parameter(Mandatory=$true)]
@@ -205,68 +194,182 @@ function Save-ADDatabase {
         [string]$Delimiter,
 
         [Parameter(Mandatory=$false)]
-        [string[]]$Properties
-
+        [string[]]$Properties = @("Name", "SamAccountName", "DistinguishedName", "ObjectClass", "ObjectGUID")
     )
 
     if (-not (Get-Module ActiveDirectory)) {
-        Import-Module ActiveDirectory
+        Import-Module ActiveDirectory -ErrorAction Stop
     }
 
+    # Properties that only exist on groups, not users
+    $GroupOnlyProperties = @("Members", "GroupCategory", "GroupScope", "ManagedBy")
+
     try {
+        # Split properties into user-safe and group-safe lists
+        $UserProperties  = $Properties | Where-Object { $GroupOnlyProperties -notcontains $_ }
+        $GroupProperties = $Properties
 
-        # If no properties are provided, use default properties
-        if (-not $Properties) {
-            $Properties = @(
-                "Name",
-                "SamAccountName",
-                "UserPrincipalName",
-                "Mail",
-                "Enabled"
-            )
-        }
+        # Build Select-Object column lists (requested props + Type)
+        $SelectUsers  = $UserProperties  + @{ Name="Type"; Expression={"User"} }
+        $SelectGroups = $GroupProperties + @{ Name="Type"; Expression={"Group"} }
 
-        # Retrieve all users from Active Directory
-        $Users = Get-ADUser -Filter * -Properties $Properties |
-        Select-Object $Properties
-
-        # Retrieve all groups from Active Directory
-        $Groups = Get-ADGroup -Filter * -Properties Name |
-        Select-Object Name
-
-        # Create a structured export object
-        $Database = @()
-
-        foreach ($User in $Users) {
-            $Database += [PSCustomObject]@{
-                Type = "User"
-                Data = ($User | ConvertTo-Json -Compress)
+        # Handle missing user columns so both user/group rows have the same columns
+        foreach ($Prop in $Properties) {
+            if ($GroupOnlyProperties -contains $Prop) {
+                $SelectUsers += @{ Name=$Prop; Expression={$null} }
             }
         }
 
-        foreach ($Group in $Groups) {
-            $Database += [PSCustomObject]@{
-                Type = "Group"
-                Data = ($Group | ConvertTo-Json -Compress)
+        # For multi-value properties (e.g. Members), join array values into a single string
+        $MultiValueProperties = @("Members", "MemberOf")
+        foreach ($Prop in $GroupProperties) {
+            if ($MultiValueProperties -contains $Prop) {
+                $PropCopy = $Prop  # Capture for closure
+                $SelectGroups = $SelectGroups | Where-Object {
+                    # Remove the plain string entry for this property
+                    -not ($_ -is [string] -and $_ -eq $PropCopy)
+                }
+                $SelectGroups += @{ Name=$PropCopy; Expression={
+                    $val = $_.$PropCopy
+                    if ($val) { $val -join "|" } else { $null }
+                }}
             }
         }
 
-        # Export the database into a CSV file
-        $Database | Export-Csv `
+        $Users  = Get-ADUser  -Filter * -Properties $UserProperties  | Select-Object $SelectUsers
+        $Groups = Get-ADGroup -Filter * -Properties $GroupProperties | Select-Object $SelectGroups
+
+        # Combine and export
+        ($Users + $Groups) | Export-Csv `
             -Path $Path `
             -Delimiter $Delimiter `
             -NoTypeInformation `
             -Encoding UTF8
 
         Write-Host "Active Directory database exported successfully to: $Path"
-
-    } catch {
+    }
+    catch {
         Write-Error "Failed to export the Active Directory database: $_"
     }
-
-
-
 }
+
+# function Save-ADDatabase {
+# <#
+# .SYNOPSIS
+#     Exports Active Directory users and groups into a CSV database file.
+
+# .DESCRIPTION
+#     Retrieves users and groups from the Active Directory domain and exports
+#     the selected properties into a CSV file. Allows the administrator to
+#     define a custom delimiter and specify which attributes should be included
+#     in the exported database.
+
+# .PARAMETER Path
+#     The destination path where the CSV database file will be saved.
+
+# .PARAMETER Delimiter
+#     The delimiter character used in the CSV export file.
+
+# .PARAMETER Properties
+#     An undefined number of Active Directory attributes to include
+#     in the exported database.
+
+# .EXAMPLE
+#     Export-ADDatabase `
+#         -Path "C:\Backup\ad_database.csv" `
+#         -Delimiter ";" `
+#         -Properties "Name","SamAccountName","Mail"
+
+#     # Exports Active Directory users and groups into a CSV file
+#     # using ";" as the delimiter and including the selected properties.
+
+# .NOTES
+#     Author: nlence-l & faventur
+#     Date: 2026-05-15
+#     Ensure the ActiveDirectory module is installed and imported before
+#     running this function.
+# #>
+#     param (
+#         [Parameter(Mandatory=$true)]
+#         [string]$Path,
+
+#         [Parameter(Mandatory=$true)]
+#         [string]$Delimiter,
+
+#         [Parameter(Mandatory=$false)]
+#         [string[]]$Properties
+
+#     )
+
+#     if (-not (Get-Module ActiveDirectory)) {
+#         Import-Module ActiveDirectory
+#     }
+
+#     try {
+#         # Get all available properties for a sample user and group
+#         $UserProperties = Get-ADUser -Identity "Administrator" -Properties * | Get-Member -MemberType Properties | Select-Object -ExpandProperty Name
+#         $GroupProperties = Get-ADGroup -Identity "Domain Admins" -Properties * | Get-Member -MemberType Properties | Select-Object -ExpandProperty Name
+
+#         # Default properties if none provided
+#         if (-not $Properties) {
+#             $Properties = @(
+#                 "Name",
+#                 "SamAccountName",
+#                 "DistinguishedName",
+#                 "ObjectClass",
+#                 "ObjectGUID"
+#             )
+#         }
+
+#         # Filter user/group properties to only valid ones
+#         $UserPropsToGet = $Properties | Where-Object { $UserProperties -contains $_ }
+#         $GroupPropsToGet = $Properties | Where-Object { $GroupProperties -contains $_ }
+
+#         # Retrieve all users and groups
+#         $Users = Get-ADUser -Filter * -Properties $UserPropsToGet | Select-Object $UserPropsToGet
+#         $Groups = Get-ADGroup -Filter * -Properties $GroupPropsToGet | Select-Object $GroupPropsToGet
+
+#         # # Create a structured export object
+#         $Database = @()
+
+#         foreach ($User in $Users) {
+#             $Database += [PSCustomObject]@{
+#                 Type = "User"
+#                 Data = ($User | ConvertTo-Json -Compress)
+#             }
+#         }
+
+#         foreach ($Group in $Groups) {
+#             $Database += [PSCustomObject]@{
+#                 Type = "Group"
+#                 Data = ($Group | ConvertTo-Json -Compress)
+#             }
+#         }
+
+#         # Add Type column to users
+#         $UsersWithType = $Users | Select-Object *, @{Name="Type";Expression={"User"}}
+
+#         # For groups: exclude Member from dynamic properties if requested
+#         $GroupsWithType = $Groups | Select-Object *, @{Name="Type";Expression={"Group"}}, @{Name="Member";Expression={$_.Member -join ";"}} 
+
+#         # Combine users and groups
+#         $Database = $UsersWithType + $GroupsWithType
+
+#         # Export the database into a CSV file
+#         $Database | Export-Csv `
+#             -Path $Path `
+#             -Delimiter $Delimiter `
+#             -NoTypeInformation `
+#             -Encoding UTF8
+
+#         Write-Host "Active Directory database exported successfully to: $Path"
+
+#     } catch {
+#         Write-Error "Failed to export the Active Directory database: $_"
+#     }
+# }
+
+
 
 function Import-ADDatabase {
 <#
