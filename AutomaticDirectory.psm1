@@ -311,22 +311,8 @@ function Import-ADDatabase {
             -Path $Path `
             -Delimiter $Delimiter
 
-        # Temporary use of attribute -Server added to Get-ADDomain
-        $ipinfos = netsh interface ipv4 show interface
-        $names = foreach($element in $ipinfos){
-            $matches = $null
-            if($element -match '.*ethernet.*|.*Local Area Connection.*'){
-                (($matches.values) -split "\s\s")[-1] -replace "^\s"
-            }
-        }
-        foreach($name in $names){
-            $IP = (Get-DnsClientServerAddress -InterfaceAlias $name -AddressFamily IPv4).ServerAddresses
-            if ($null -ne $IP) {
-                break
-            }
-        }
 
-        $DomainName = (Get-ADDomain -Server "$IP").DNSRoot
+        $DomainName = (Get-ADDomain).DNSRoot
 
         foreach ($Entry in $Database) {
 
@@ -461,23 +447,9 @@ function New-ADUserAccount {
                 throw "The OU '$GroupOU' doesn't exist."
             }
         }
-        # Temporary use of attribute -Server added to Get-ADDomain
-        $ipinfos = netsh interface ipv4 show interface
-        $names = foreach($element in $ipinfos){
-            $matches = $null
-            if($element -match '.*ethernet.*|.*Local Area Connection.*'){
-                (($matches.values) -split "\s\s")[-1] -replace "^\s"
-            }
-        }
-        foreach($name in $names){
-            $IP = (Get-DnsClientServerAddress -InterfaceAlias $name -AddressFamily IPv4).ServerAddresses
-            if ($null -ne $IP) {
-                break
-            }
-        }
 
         # Retrieve domain information
-        $Domain = Get-ADDomain -Server "$IP"
+        $Domain = Get-ADDomain
         $DomainName = $Domain.DNSRoot
 
         # Generate user information
@@ -822,23 +794,9 @@ function New-ADSecurityGroup {
         if (Get-ADGroup -Filter "Name -eq '$GroupName'" -ErrorAction SilentlyContinue) {
             throw "The group '$GroupName' already exists."
         }
-        # Temporary use of attribute -Server added to Get-ADDomain
-        $ipinfos = netsh interface ipv4 show interface
-        $names = foreach($element in $ipinfos){
-            $matches = $null
-            if($element -match '.*ethernet.*|.*Local Area Connection.*'){
-                (($matches.values) -split "\s\s")[-1] -replace "^\s"
-            }
-        }
-        foreach($name in $names){
-            $IP = (Get-DnsClientServerAddress -InterfaceAlias $name -AddressFamily IPv4).ServerAddresses
-            if ($null -ne $IP) {
-                break
-            }
-        }
 
         # Retrieve domain information
-        $Domain = Get-ADDomain -Server "$IP"
+        $Domain = Get-ADDomain
         $DomainDN = $Domain.DistinguishedName
 
         # Build the full user OU path
@@ -1037,20 +995,6 @@ function New-ADDistributionGroup {
         # Check if the OU already exists
         if (-not(Get-ADOrganizationalUnit -Filter "Name -eq '$OrganizationalUnit'" -ErrorAction SilentlyContinue)) {
             throw "The OU '$OrganizationalUnit' doesn't exist."
-        }
-        # Temporary use of attribute -Server added to Get-ADDomain
-        $ipinfos = netsh interface ipv4 show interface
-        $names = foreach($element in $ipinfos){
-            $matches = $null
-            if($element -match '.*ethernet.*|.*Local Area Connection.*'){
-                (($matches.values) -split "\s\s")[-1] -replace "^\s"
-            }
-        }
-        foreach($name in $names){
-            $IP = (Get-DnsClientServerAddress -InterfaceAlias $name -AddressFamily IPv4).ServerAddresses
-            if ($null -ne $IP) {
-                break
-            }
         }
 
         # Retrieve domain information
