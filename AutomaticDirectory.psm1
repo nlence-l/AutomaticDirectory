@@ -657,25 +657,12 @@ function Get-ADUserInformation {
     }
 
     try {
-
         # If no properties are provided, retrieve all properties
         if (-not $Properties) {
-
-            Get-ADUser `
-                -Identity $AccountName `
-                -Properties * |
-
-            Format-List *
-
+            Get-ADUser -Identity $AccountName -Properties * | Format-List *
         } else {
-
-            Get-ADUser `
-                -Identity $AccountName `
-                -Properties $Properties |
-
-            Select-Object $Properties
+            Get-ADUser -Identity $AccountName -Properties $Properties | Select-Object $Properties
         }
-
     } catch {
         Write-Error "Failed to retrieve user information: $_"
     }
@@ -711,25 +698,12 @@ function Get-ADAllUsersInformation {
     }
 
     try {
-
         # If no properties are provided, retrieve all properties
         if (-not $Properties) {
-
-            Get-ADUser `
-                -Filter * `
-                -Properties * |
-
-            Format-List *
-
+            Get-ADUser -Filter * -Properties * | Format-List *
         } else {
-
-            Get-ADUser `
-                -Filter * `
-                -Properties $Properties |
-
-            Select-Object $Properties
+            Get-ADUser -Filter * -Properties $Properties | Select-Object $Properties
         }
-
     } catch {
         Write-Error "Failed to retrieve users information: $_"
     }
@@ -865,23 +839,17 @@ function Set-ADGroupAttribute {
     }
 
     try {
-
         # Verify that the group exists
-        $Group = Get-ADGroup `
-            -Filter "Name -eq '$GroupName'" `
-            -ErrorAction SilentlyContinue
+        $Group = Get-ADGroup -Filter "Name -eq '$GroupName'" -ErrorAction SilentlyContinue
 
         if (-not $Group) {
             throw "The group '$GroupName' does not exist."
         }
 
         # Modify the group attribute
-        Set-ADGroup `
-            -Identity $GroupName `
-            -Replace @{ $AttributeName = $Value }
+        Set-ADGroup -Identity $GroupName -Replace @{ $AttributeName = $Value }
 
         Write-Host "Group attribute updated successfully."
-
     } catch {
         Write-Error "Failed to modify the group attribute: $_"
     }
@@ -919,18 +887,14 @@ function Get-ADGroupMembers {
     try {
 
         # Verify that the group exists
-        $Group = Get-ADGroup `
-            -Filter "Name -eq '$GroupName'" `
-            -ErrorAction SilentlyContinue
+        $Group = Get-ADGroup -Filter "Name -eq '$GroupName'" -ErrorAction SilentlyContinue
 
         if (-not $Group) {
             throw "The group '$GroupName' does not exist."
         }
 
         # Retrieve group members
-        Get-ADGroupMember `
-            -Identity $GroupName
-
+        Get-ADGroupMember -Identity $GroupName
     } catch {
         Write-Error "Failed to retrieve group members: $_"
     }
@@ -1016,7 +980,6 @@ function New-ADDistributionGroup {
             -Description $Description
 
         Write-Host "Distribution group '$GroupName' created successfully."
-
     } catch {
         Write-Error "Failed to create the distribution group: $_"
     }
@@ -1072,12 +1035,9 @@ function Add-ADUserToGroup {
         }
 
         # Add the user to the group
-        Add-ADGroupMember `
-            -Identity $GroupName `
-            -Members $AccountName
+        Add-ADGroupMember -Identity $GroupName -Members $AccountName
 
         Write-Host "User '$AccountName' added to '$GroupName'."
-
     } catch {
         Write-Error "Failed to add the user to the group: $_"
     }
@@ -1147,7 +1107,6 @@ function Remove-ADUserFromGroup {
             -Confirm:$false
 
         Write-Host "User '$AccountName' removed from '$GroupName'."
-
     } catch {
         Write-Error "Failed to remove the user from the group: $_"
     }
@@ -1202,19 +1161,14 @@ function Import-ADGroupMembers {
         }
 
         # Retrieve members from the source group
-        $Members = Get-ADGroupMember `
-            -Identity $SourceGroupName
+        $Members = Get-ADGroupMember -Identity $SourceGroupName
 
         # Import members into the destination group
         foreach ($Member in $Members) {
-
-            Add-ADGroupMember `
-                -Identity $DestinationGroupName `
-                -Members $Member
+            Add-ADGroupMember -Identity $DestinationGroupName -Members $Member
         }
 
         Write-Host "Members imported successfully."
-
     } catch {
         Write-Error "Failed to import group members: $_"
     }
@@ -1260,18 +1214,10 @@ function Get-ADGroupInformation {
     try {
 
         if (-not $Properties) {
-
-            Get-ADGroup `
-                -Identity $GroupName `
-                -Properties * | Format-List *
-
+            Get-ADGroup -Identity $GroupName -Properties * | Format-List *
         } else {
-
-            Get-ADGroup `
-                -Identity $GroupName `
-                -Properties $Properties | Select-Object $Properties
+            Get-ADGroup -Identity $GroupName -Properties $Properties | Select-Object $Properties
         }
-
     } catch {
         Write-Error "Failed to retrieve group information: $_"
     }
@@ -1308,31 +1254,19 @@ function Get-ADEveryGroupInformation {
     }
 
     try {
-
         if (-not $Properties) {
-
-            Get-ADGroup `
-                -Filter * `
-                -Properties * |
-
-            Format-List *
-
+            Get-ADGroup -Filter * -Properties * | Format-List *
         } else {
-
-            Get-ADGroup `
-                -Filter * `
-                -Properties $Properties |
-
-            Select-Object $Properties
+            Get-ADGroup -Filter * -Properties $Properties | Select-Object $Properties
         }
-
     } catch {
         Write-Error "Failed to retrieve groups information: $_"
     }
 }
 
 
-Export-ModuleMember -Function Install-ADPackage, New-ForestDomainController, Add-DomainController,
+Export-ModuleMember -Function
+Install-ADPackage, New-ForestDomainController, Add-DomainController,
 Save-ADDatabase, Import-ADDatabase,
 New-ADUserAccount, Reset-ADUserPassword, Set-ADUserAttribute, Get-ADUserInformation, Get-ADAllUsersInformation,
 New-ADSecurityGroup, Set-ADGroupAttribute, Get-ADGroupMembers, New-ADDistributionGroup, Add-ADUserToGroup, Remove-ADUserFromGroup, Import-ADGroupMembers, Get-ADGroupInformation, Get-ADEveryGroupInformation
